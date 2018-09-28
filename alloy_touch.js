@@ -32,20 +32,24 @@
 
 (function () {
 
+    // 冒泡
     function bind(element, type, callback) {
         element.addEventListener(type, callback, false);
     }
 
+    // 缓动函数
     function ease(x) {
         return Math.sqrt(1 - Math.pow(x - 1, 2));
     }
-
+    // 反缓动函数
     function reverseEase(y) {
         return 1 - Math.sqrt(1 - y * y);
     }
 
     function preventDefaultTest(el, exceptions) {
+        // 每个element 默认都有一个'tagName'属性 => 返回一个大写的标签名字
         for (var i in exceptions) {
+            // console.log(exceptions[i], el['tagName'])  
             if (exceptions[i].test(el[i])) {
                 return true;
             }
@@ -125,6 +129,7 @@
         },
         _start: function (evt) {
             this.isTouchStart = true;
+            // option传入的回调函数
             this.touchStart.call(this, evt, this.target[this.property]);
             cancelAnimationFrame(this.tickID);
             this._calculateIndex();
@@ -143,6 +148,7 @@
 
                 if (this._firstTouchMove && this.lockDirection) {
                     var dDis = Math.abs(currentX - this.x1) - Math.abs(currentY - this.y1);
+                    // 水平滑动 允许的是垂直方向移动的话 阻止默认的滑动行文
                     if (dDis > 0 && this.vertical) {
                         this._preventMove = true;
                     } else if (dDis < 0 && !this.vertical) {
@@ -151,6 +157,7 @@
                     this._firstTouchMove = false;
                 }
                 if(!this._preventMove) {
+                    // 带上灵敏度的distance
                     var d = (this.vertical ? currentY - this.preY : currentX - this.preX) * this.sensitivity;
                     var f = this.moveFactor;
                     if (this.hasMax && this.target[this.property] > this.max && d > 0) {
@@ -158,7 +165,9 @@
                     } else if (this.hasMin && this.target[this.property] < this.min && d < 0) {
                         f = this.outFactor;
                     }
+                    // console.log(this.max)
                     d *= f;
+                    // console.log(d,'d', this.target, 'target',this.property, this.target[this.property])
                     this.preX = currentX;
                     this.preY = currentY;
                     if (!this.fixed) {
@@ -166,22 +175,26 @@
                     }
                     this.change.call(this, this.target[this.property]);
                     var timestamp = new Date().getTime();
+                    // 修复触摸开始的位置
                     if (timestamp - this.startTime > 300) {
                         this.startTime = timestamp;
                         this.start = this.vertical ? this.preY : this.preX;
                     }
+                    // 调用touchmove的回调函数
                     this.touchMove.call(this, evt, this.target[this.property]);
                 }
-
+                //(INPUT|TEXTAREA|BUTTON|SELECT）不是在这几个元素之中 就阻止冒泡
                 if (this.preventDefault && !preventDefaultTest(evt.target, this.preventDefaultException)) {
                     evt.preventDefault();
                 }
+                // evt=> touch event 
+                // console.log(evt, evt.target, this.preventDefaultException)
 
+                // 第一次触摸
                 if (len === 1) {
                     if (this.x2 !== null) {
                         evt.deltaX = currentX - this.x2;
                         evt.deltaY = currentY - this.y2;
-
                     } else {
                         evt.deltaX = 0;
                         evt.deltaY = 0;
@@ -199,6 +212,7 @@
 
         },
         to: function (v, time, user_ease) {
+            console.log(v, time, user_ease)
             this._to(v, this._getValue(time, 600), user_ease || ease, this.change, function (value) {
                 this._calculateIndex();
                 this.reboundEnd.call(this, value);
@@ -209,6 +223,7 @@
         _calculateIndex: function () {
             if (this.hasMax && this.hasMin) {
                 this.currentPage = Math.round((this.max - this.target[this.property]) / this.step);
+                console.log(this.currentPage, this.max, this.step, this.target[this.property])
             }
         },
         _end: function (evt) {
@@ -217,10 +232,13 @@
                 var self = this,
                     current = this.target[this.property],
                     triggerTap = (Math.abs(evt.changedTouches[0].pageX - this.x1) < 30 && Math.abs(evt.changedTouches[0].pageY - this.y1) < 30);
+                    console.log(current,'current')
+                // X轴和Y轴的移动距离差小于30的时候为视为tap事件
                 if (triggerTap) {
                     this.tap.call(this, evt, current);
                 }
                 if (this.touchEnd.call(this, evt, current, this.currentPage) === false) return;
+                // 大于可向上滚动的高度触发回弹和执行动画执行完成回调
                 if (this.hasMax && current > this.max) {
                     this._to(this.max, 200, ease, this.change, function (value) {
                         this.reboundEnd.call(this, value);
@@ -231,27 +249,37 @@
                         this.reboundEnd.call(this, value);
                         this.animationEnd.call(this, value);
                     }.bind(this));
+                    // 惯性运动
                 } else if (this.inertia && !triggerTap && !this._preventMove) {
                     var dt = new Date().getTime() - this.startTime;
                     if (dt < 300) {
+                        // 最后一小段位移
                         var distance = ((this.vertical ? evt.changedTouches[0].pageY : evt.changedTouches[0].pageX) - this.start) * this.sensitivity,
                             speed = Math.abs(distance) / dt,
                             speed2 = this.factor * speed;
                         if(this.hasMaxSpeed&&speed2>this.maxSpeed) {
                             speed2 = this.maxSpeed;
                         }
+                        // 缓动位移的终点 牛顿惯性运动
+                        /**http://gaozhongwuli.com/top/481763.html
+                         *  Vt^2 - V0^2 = 2 * a * s  => s = Vt^2/2*a
+                         */
                         var destination = current + (speed2 * speed2) / (2 * this.deceleration) * (distance < 0 ? -1 : 1);
-
+                        console.log(distance,destination,current, this.deceleration, speed2 * speed2 )
                         var tRatio = 1;
                         if (destination < this.min ) {
+                            // 缓动终点超出最大的距离 修正距离
                             if (destination < this.min - this.maxRegion) {
                                 tRatio = reverseEase((current - this.min + this.springMaxRegion) / (current - destination));
                                 destination = this.min - this.springMaxRegion;
+                                console.log(tRatio, destination, 'tRatio', 'destination')
                             } else {
                                 tRatio = reverseEase((current - this.min + this.springMaxRegion * (this.min - destination) / this.maxRegion) / (current - destination));
                                 destination = this.min - this.springMaxRegion * (this.min - destination) / this.maxRegion;
+                                console.log(tRatio, destination, 'tRatio1', 'destination1')
                             }
                         } else if (destination > this.max) {
+                            // 修正destination
                             if (destination > this.max + this.maxRegion) {
                                 tRatio = reverseEase((this.max + this.springMaxRegion - current) / (destination - current));
                                 destination = this.max + this.springMaxRegion;
@@ -261,8 +289,10 @@
 
                             }
                         }
+                        // 速度减到0所需要时间 v2 - v1 = at 
                         var duration = Math.round(speed / self.deceleration) * tRatio;
 
+                        // 移动
                         self._to(Math.round(destination), duration, ease, self.change, function (value) {
                             if (self.hasMax && self.target[self.property] > self.max) {
 
@@ -297,6 +327,7 @@
                 // }
 
             }
+            // 移动结束 重置为0
             this.x1 = this.x2 = this.y1 = this.y2 = null;
 
         },
@@ -307,16 +338,19 @@
             var current = el[property];
             var dv = value - current;
             var beginTime = new Date();
+            console.log(beginTime, 'begion Time')
             var self = this;
             var toTick = function () {
 
                 var dt = new Date() - beginTime;
+                // 超过动画执行设定的时间 执行回调函数
                 if (dt >= time) {
                     el[property] = value;
                     onChange && onChange.call(self, value);
                     onEnd && onEnd.call(self, value);
                     return;
                 }
+                // 修改比如 TranslateY 的移动距离
                 el[property] = dv * ease(dt / time) + current;
                 self.tickID = requestAnimationFrame(toTick);
                 //cancelAnimationFrame必须在 tickID = requestAnimationFrame(toTick);的后面
@@ -324,20 +358,27 @@
             };
             toTick();
         },
+        /**
+         * 位置纠正
+         */
         _correction: function () {
             if (this.step === void 0) return;
             var el = this.target,
                 property = this.property;
             var value = el[property];
+            // 根据step的长度 提供页数
             var rpt = Math.floor(Math.abs(value / this.step));
             var dy = value % this.step;
+
             if (Math.abs(dy) > this.step / 2) {
+                // 移动超过一页的一半 就移动到下一页
                 this._to((value < 0 ? -1 : 1) * (rpt + 1) * this.step, 400, ease, this.change, function (value) {
                     this._calculateIndex();
                     this.correctionEnd.call(this, value);
                     this.animationEnd.call(this, value);
                 }.bind(this));
             } else {
+                // 否则返回当前页
                 this._to((value < 0 ? -1 : 1) * rpt * this.step, 400, ease, this.change, function (value) {
                     this._calculateIndex();
                     this.correctionEnd.call(this, value);
