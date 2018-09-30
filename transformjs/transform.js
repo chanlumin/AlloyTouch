@@ -4,6 +4,9 @@
  */
 ; (function () {
 
+    // Math.PI * 2 / 360  一角度 对应多少弧度  
+    // 1 turn 一圈    400梯度一圈
+    // degress radiants
     var DEG_TO_RAD =  0.017453292519943295;
 
     var Matrix3D = function (n11, n12, n13, n14, n21, n22, n23, n24, n31, n32, n33, n34, n41, n42, n43, n44) {
@@ -132,6 +135,20 @@
         }
     };
 
+    // translateX: 0,
+    // translateY: 0,
+    // rotation: 0,
+    // skewX: 0,
+    // skewY: 0,
+    // originX: 0,
+    // originY: 0,
+    // scaleX: 1,
+    // scaleY: 1
+
+    // a 水平缩放 b 水平拉伸 c 垂直拉伸 d 垂直缩放 x 水平位移 y 垂直位移
+    //"matrix(1, 0, 0, 1, 0, 0)"
+    // 比如scale(1.2,1.2) => matrix(1.2,0,0,1.2,0,0) 
+    // https://www.cnblogs.com/wangmeijian/p/4713722.html
     var Matrix2D = function(a, b, c, d, tx, ty) {
         this.a = a == null ? 1 : a;
         this.b = b || 0;
@@ -144,7 +161,8 @@
 
     Matrix2D.prototype = {
         identity : function() {
-            this.a = this.d = 1;
+            // 默认水平缩放和垂直缩放的比例为1
+            this.a = this.d = 1; 
             this.b = this.c = this.tx = this.ty = 0;
             return this;
         },
@@ -153,6 +171,7 @@
                 var r = rotation * DEG_TO_RAD;
                 var cos = Math.cos(r);
                 var sin = Math.sin(r);
+                console.log(cos, sin, 'cos, sin of rotation')
             } else {
                 cos = 1;
                 sin = 0;
@@ -160,7 +179,9 @@
             if (skewX || skewY) {
                 skewX *= DEG_TO_RAD;
                 skewY *= DEG_TO_RAD;
+                // 旋转
                 this.append(Math.cos(skewY), Math.sin(skewY), -Math.sin(skewX), Math.cos(skewX), x, y);
+                // ?
                 this.append(cos * scaleX, sin * scaleX, -sin * scaleY, cos * scaleY, 0, 0);
             } else {
                 this.append(cos * scaleX, sin * scaleX, -sin * scaleY, cos * scaleY, x, y);
@@ -180,8 +201,8 @@
             this.b = a * b1 + b * d1;
             this.c = c * a1 + d * c1;
             this.d = c * b1 + d * d1;
-            this.tx = tx * a1 + ty * c1 + this.tx;
-            this.ty = tx * b1 + ty * d1 + this.ty;
+            this.tx = tx * a1 + ty * c1 + this.tx; // 计算平移后transform-origin 的x轴坐标
+            this.ty = tx * b1 + ty * d1 + this.ty; // 
             return this;
         },
         initialize : function(a, b, c, d, tx, ty) {
@@ -207,6 +228,7 @@
         }
     };
 
+    // 给target添加属性props中的属性,同时监听
     function observe(target, props, callback) {
         for (var i = 0, len = props.length; i < len; i++) {
             var prop = props[i];
@@ -214,6 +236,12 @@
         }
     }
 
+    /**
+     * Object.defineProperty 修改set和get函数 每次set的时候 触发callback函数
+     * @param {队形} target 
+     * @param {属性} prop 
+     * @param {回到函数}} callback 
+     */
     function watch(target, prop, callback) {
         Object.defineProperty(target, prop, {
             get: function () {
@@ -226,6 +254,7 @@
         });
     }
 
+    // 判断element是否是 Element类型
     function isElement(o) {
         return (
             typeof HTMLElement === "object" ? o instanceof HTMLElement : //DOM2
@@ -246,6 +275,8 @@
             observeProps,
             function () {
                 var mtx = obj.matrix3d.identity().appendTransform(obj.translateX, obj.translateY, obj.translateZ, obj.scaleX, obj.scaleY, obj.scaleZ, obj.rotateX, obj.rotateY, obj.rotateZ, obj.skewX, obj.skewY, obj.originX, obj.originY, obj.originZ);
+                // 获取transform 字符串  maxtrix3d(1,0,0,1,0,....) 赋值给 obj.style.transform属性
+                // https://stackoverflow.com/questions/8890888/css3-converting-matrix3d-values 
                 var transform = (notPerspective ? "" : "perspective(" + obj.perspective + "px) ") + "matrix3d(" + Array.prototype.slice.call(mtx.elements).join(",") + ")";
                 if (objIsElement) {
                     obj.style.transform = obj.style.msTransform = obj.style.OTransform = obj.style.MozTransform = obj.style.webkitTransform = transform;
